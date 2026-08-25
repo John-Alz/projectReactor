@@ -1,6 +1,7 @@
 package org.projectreactor;
 
 import lombok.extern.slf4j.Slf4j;
+import org.projectreactor.errorhandler.FallbackService;
 import org.projectreactor.errorhandler.HandleDisabledVideoGame;
 import org.projectreactor.pipelines.PipelineAllComments;
 import org.projectreactor.pipelines.PipelineSumAllPricesInDiscount;
@@ -45,7 +46,10 @@ public class Main {
 //
 //        reportFlux.doOnNext(System.out::println).blockLast();
 
-        HandleDisabledVideoGame.handleDisabledVideoGamesDefault()
+//        HandleDisabledVideoGame.handleDisabledVideoGamesDefault()
+//                .subscribe(v -> log.info(v.toString()));
+
+        FallbackService.callFallback()
                 .subscribe(v -> log.info(v.toString()));
 
 
