@@ -1,12 +1,18 @@
 package org.projectreactor;
 
 import lombok.extern.slf4j.Slf4j;
+import org.projectreactor.callbacks.CallbacksExample;
+import org.projectreactor.database.Database;
 import org.projectreactor.errorhandler.FallbackService;
 import org.projectreactor.errorhandler.HandleDisabledVideoGame;
+import org.projectreactor.models.Console;
+import org.projectreactor.models.Videogame;
 import org.projectreactor.pipelines.PipelineAllComments;
 import org.projectreactor.pipelines.PipelineSumAllPricesInDiscount;
 import org.projectreactor.pipelines.PipelineTopSalling;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 
 import java.time.Duration;
 
@@ -49,9 +55,30 @@ public class Main {
 //        HandleDisabledVideoGame.handleDisabledVideoGamesDefault()
 //                .subscribe(v -> log.info(v.toString()));
 
-        FallbackService.callFallback()
-                .subscribe(v -> log.info(v.toString()));
+//        FallbackService.callFallback()
+//                .subscribe(v -> log.info(v.toString()));
+
+//        CallbacksExample.callbacks()
+//                .subscribe(data -> log.debug(data.getName()));
+
+        Database.getVideogamesFlux()
+                .filterWhen(videogame -> Mono.deferContextual(ctx -> {
+                    var userId = ctx.getOrDefault("userId", "0");
+                    if (userId.startsWith("1")) {
+                        return Mono.just(videoGameForConsole(videogame, Console.XBOX));
+                    } else if (userId.startsWith("2")) {
+                        return Mono.just(videoGameForConsole(videogame, Console.PLAYSTATION));
+                    } else {
+                        return Mono.just(false);
+                    }
+                }))
+                .contextWrite(Context.of("userId", "30020192"))
+                .subscribe(vg -> log.info("Recomendacion name {} console {}", vg.getName(), vg.getConsole()));
 
 
+    }
+
+    private static boolean videoGameForConsole(Videogame videogame, Console console) {
+        return videogame.getConsole().equals(console) || videogame.getConsole().equals(Console.ALL);
     }
 }
