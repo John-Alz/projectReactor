@@ -30,7 +30,7 @@ public class NotificationSystem {
     private final Sinks.Many<NotificationEvent> historySink;
 
     private final NotificationService teamsService;
-    private final NotificationService emailSerivce;
+    private final NotificationService emailService;
     private final NotificationService phoneService;
 
 
@@ -40,6 +40,26 @@ public class NotificationSystem {
 
     private final ConcurrentMap<String, NotificationEvent> notificationCache;
 
+    public NotificationSystem(
+            NotificationService teamsService,
+            NotificationService emailService,
+            NotificationService phoneService) {
+        this.mainEventSink = Sinks.many().multicast().onBackpressureBuffer();
+        this.historySink = Sinks.many().replay().limit(50);
+
+        this.teamsSink = Sinks.one();
+        this.emailSink = Sinks.one();
+        this.phoneSink = Sinks.one();
+
+        this.teamsService = teamsService;
+        this.emailService = emailService;
+        this.phoneService = phoneService;
+
+        this.notificationCache = new ConcurrentHashMap<>();
+
+        setupProcessingFlows();
+    }
+
     public NotificationSystem() {
         this.mainEventSink = Sinks.many().multicast().onBackpressureBuffer();
         this.historySink  = Sinks.many().replay().limit(50);
@@ -48,7 +68,7 @@ public class NotificationSystem {
         this.phoneSink = Sinks.one();
 
         this.teamsService = new PhoneService();
-        this.emailSerivce = new EmailService();
+        this.emailService = new EmailService();
         this.phoneService = new PhoneService();
 
         this.notificationCache = new ConcurrentHashMap<>();
@@ -72,7 +92,6 @@ public class NotificationSystem {
     private void setupTeamsProcessor() {
         teamsSink
                 .asMono()
-                .repeat()
                 .flatMap(event ->
                         teamsService.sendNotification(event)
                                 .subscribeOn(Schedulers.boundedElastic())
@@ -86,20 +105,19 @@ public class NotificationSystem {
     private void setupEmailProcessor() {
         emailSink
                 .asMono()
-                .repeat()
                 .flatMap(event ->
-                        emailSerivce.sendNotification(event)
+                        emailService.sendNotification(event)
                                 .subscribeOn(Schedulers.boundedElastic())
                                 .doOnSuccess(success -> updateDeliveredStatus(event, EMAIL_CHANNEL))
                                 .doOnError(error -> updatedErrorStatus(event, EMAIL_CHANNEL, error))
                                 .onErrorResume(error -> Mono.just(false))
-                        );
+                        )
+                .subscribe();
     }
 
     private void setupPhoneProcessor() {
         phoneSink
                 .asMono()
-                .repeat()
                 .flatMap(event ->
                         phoneService.sendNotification(event)
                                 .subscribeOn(Schedulers.boundedElastic())
@@ -107,7 +125,8 @@ public class NotificationSystem {
                                 .doOnError(error -> updatedErrorStatus(event, PHONE_CHANNEL, error))
                                 .retry(3)
                                 .onErrorResume(error -> Mono.just(false))
-                );
+                )
+                .subscribe();
     }
 
     private void updateEventStatus(NotificationEvent event) {
