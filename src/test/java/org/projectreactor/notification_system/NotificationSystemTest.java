@@ -128,6 +128,29 @@ class NotificationSystemTest {
 
     }
 
+    @Test
+    void testRetryPhoneAttempts() {
+        AtomicInteger attemps = new AtomicInteger(0);
+
+        when(mockPhoneService.sendNotification(any(NotificationEvent.class))).thenAnswer(inv -> {
+            int currentAttempt = attemps.incrementAndGet();
+            if (currentAttempt <= 2) {
+                return Mono.error(new RuntimeException("Error on send message in Phone call."));
+            }else {
+                phoneCallCount.incrementAndGet();
+                return Mono.just(true);
+            }
+        });
+
+        NotificationEvent testEvent = createTestEvent(Priority.HIGH);
+        notificationSystem.publishEvent(testEvent);
+
+        sleep(2000);
+        assert attemps.get() >= 3;
+        assert phoneCallCount.get() == 1;
+
+    }
+
 
     private NotificationEvent createTestEvent(Priority priority) {
         return NotificationEvent.builder()

@@ -12,7 +12,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -119,11 +121,11 @@ public class NotificationSystem {
         phoneSink
                 .asMono()
                 .flatMap(event ->
-                        phoneService.sendNotification(event)
+                        Mono.defer(() -> phoneService.sendNotification(event))
                                 .subscribeOn(Schedulers.boundedElastic())
+                                .retryWhen(Retry.fixedDelay(3, Duration.ofMillis(100)))
                                 .doOnSuccess(success -> updateDeliveredStatus(event, PHONE_CHANNEL))
                                 .doOnError(error -> updatedErrorStatus(event, PHONE_CHANNEL, error))
-                                .retry(3)
                                 .onErrorResume(error -> Mono.just(false))
                 )
                 .subscribe();
